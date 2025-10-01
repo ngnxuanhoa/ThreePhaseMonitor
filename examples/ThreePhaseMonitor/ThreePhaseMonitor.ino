@@ -24,7 +24,7 @@ void setup() {
   delay(1000);
 
   // --- Cấu hình các hằng số cho từng pha ---
-                  //(Analog_pin, Voltaget_ratio, Current_ratio, burdenResistor)
+                  //(Analog_pin, Vol_ratio, Cur_ratio, burdenRes)
   emon.configurePhase(0, 20.0, 1000.0, 10.0); // Pha R (A0)
   emon.configurePhase(1, 20.0, 1000.0, 10.0); // Pha S (A1)
   emon.configurePhase(2, 20.0, 1000.0, 10.0); // Pha T (A2)
