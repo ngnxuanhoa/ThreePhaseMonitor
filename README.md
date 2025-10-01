@@ -8,7 +8,6 @@ This library provides a robust foundation for building sophisticated energy moni
 
 -   **True Three-Phase Monitoring**: Simultaneously measures Voltage and Current for all three phases (L1, L2, L3).
 -   **High Accuracy**: Leverages external 16-bit ADS1115 ADCs for superior precision compared to the internal ESP32 ADC.
--   **Non-Blocking Architecture**: Utilizes interrupts from the ADS1115 `ALERT/RDY` pin. This frees up the ESP32's CPU to handle other tasks like Wi-Fi, Bluetooth, web servers, or display updates without interruption.
 -   **Comprehensive Calculations**: Automatically computes all essential power metrics for each phase:
     -   RMS Voltage (Vrms)
     -   RMS Current (Irms)
