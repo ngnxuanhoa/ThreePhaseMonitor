@@ -91,9 +91,9 @@ Here is the essential wiring guide for connecting the ESP32 to the two ADS1115 m
     
       // --- Cấu hình các hằng số cho từng pha ---
                           //Analog_pin, Vol_Ratio, Cur_Ratio, burdenRes)
-      emon.configurePhase(0, 20.0, 2000.0, 22.0); // Pha R (A0) PZCT-02: Cur_ratio 1000, SCT-013 Cur_ratio 2000
-      emon.configurePhase(1, 20.0, 2000.0, 22.0); // Pha S (A1) PZCT-02: Cur_ratio 1000, SCT-013 Cur_ratio 2000
-      emon.configurePhase(2, 20.0, 2000.0, 22.0); // Pha T (A2) PZCT-02: Cur_ratio 1000, SCT-013 Cur_ratio 2000
+      emon.configurePhase(0, 20.0, 2000.0, 10.0); // Pha R (A0) PZCT-02: Cur_ratio 1000, SCT-013 Cur_ratio 2000
+      emon.configurePhase(1, 20.0, 2000.0, 10.0); // Pha S (A1) PZCT-02: Cur_ratio 1000, SCT-013 Cur_ratio 2000
+      emon.configurePhase(2, 20.0, 2000.0, 10.0); // Pha T (A2) PZCT-02: Cur_ratio 1000, SCT-013 Cur_ratio 2000
     }
 ### 3. Run in loop()
     The emon.loop() function must be called continuously. It handles all background sampling and calculations.
