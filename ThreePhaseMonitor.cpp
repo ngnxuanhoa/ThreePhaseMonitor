@@ -1,13 +1,8 @@
 #include "ThreePhaseMonitor.h"
 
-ThreePhaseMonitor* ThreePhaseMonitor::_instance = nullptr;
-
 ThreePhaseMonitor::ThreePhaseMonitor() {}
 
-bool ThreePhaseMonitor::begin(uint8_t v_addr, uint8_t i_addr, uint8_t rdyPin, TwoWire &wire) {
-    _rdyPin = rdyPin;
-    _instance = this;
-
+bool ThreePhaseMonitor::begin(uint8_t v_addr, uint8_t i_addr, TwoWire &wire) {
     if (!_ads_v.begin(v_addr, &wire) || !_ads_i.begin(i_addr, &wire)) {
         return false;
     }
@@ -17,16 +12,16 @@ bool ThreePhaseMonitor::begin(uint8_t v_addr, uint8_t i_addr, uint8_t rdyPin, Tw
     _ads_i.setGain(GAIN_ONE);
     _ads_i.setDataRate(RATE_ADS1115_860SPS);
 
-    // Dùng ADC dòng điện làm nguồn ngắt
-    _ads_i.writeRegister(ADS1115_REG_POINTER_HITHRESH, 0x8000);
-    _ads_i.writeRegister(ADS1115_REG_POINTER_LOTHRESH, 0x0000);
-
-    pinMode(_rdyPin, INPUT);
-    attachInterrupt(digitalPinToInterrupt(_rdyPin), isr_handler, FALLING);
-
     _currentChannel = 0;
-    _dataReady = false;
     _isReadyFlag = false;
+    _lastCalculationTime = 0;
+
+    // Khởi tạo các giá trị ban đầu cho các pha
+    for (int i = 0; i < 3; i++) {
+        _phases[i] = {0}; // Zero out the struct
+	_phases[i].vOffset = 13200; 
+        _phases[i].iOffset = 13200;
+    }
     
     return true;
 }
@@ -40,9 +35,6 @@ void ThreePhaseMonitor::configurePhase(uint8_t phase, float vCal, float iCal, fl
 }
 
 void ThreePhaseMonitor::calibrateOffsets(uint16_t numSamples) {
-    detachInterrupt(digitalPinToInterrupt(_rdyPin));
-    Serial.println("Bat dau hieu chuan Offsets. Dam bao khong co tai!");
-
     long sum_v[3] = {0, 0, 0};
     long sum_i[3] = {0, 0, 0};
 
@@ -51,7 +43,6 @@ void ThreePhaseMonitor::calibrateOffsets(uint16_t numSamples) {
             sum_v[ch] += _ads_v.readADC_SingleEnded(ch);
             sum_i[ch] += _ads_i.readADC_SingleEnded(ch);
         }
-        delay(2);
     }
 
     for (uint8_t ch = 0; ch < 3; ch++) {
@@ -59,94 +50,90 @@ void ThreePhaseMonitor::calibrateOffsets(uint16_t numSamples) {
         _phases[ch].iOffset = sum_i[ch] / numSamples;
         Serial.printf("Pha %d -> V_Offset: %d, I_Offset: %d\n", ch + 1, _phases[ch].vOffset, _phases[ch].iOffset);
     }
-    
-    attachInterrupt(digitalPinToInterrupt(_rdyPin), isr_handler, FALLING);
-    _startNextConversion(); // Bắt đầu chu trình đo lường
 }
 
-void IRAM_ATTR ThreePhaseMonitor::isr_handler() {
-    if (_instance) _instance->_dataReady = true;
-}
-
-void ThreePhaseMonitor::_startNextConversion() {
-    // Bắt đầu đo đồng thời trên cả hai ADC cho kênh hiện tại
-    _ads_v.startADCReading(ADS1X15_REG_CONFIG_MUX_SINGLE_0 + _currentChannel, false);
-    _ads_i.startADCReading(ADS1X15_REG_CONFIG_MUX_SINGLE_0 + _currentChannel, false);
-}
-
-void ThreePhaseMonitor::_handleInterrupt() {
-    // Đọc kết quả
-    int16_t v_raw = _ads_v.getLastConversionResults();
-    int16_t i_raw = _ads_i.getLastConversionResults();
-
-    // Lọc DC offset
-    double v_sample = v_raw - _phases[_currentChannel].vOffset;
-    double i_sample = i_raw - _phases[_currentChannel].iOffset;
-
-    // Tích lũy các giá trị
-    _phases[_currentChannel].sumV_sq += v_sample * v_sample;
-    _phases[_currentChannel].sumI_sq += i_sample * i_sample;
-    _phases[_currentChannel].sumPower += v_sample * i_sample;
-    _phases[_currentChannel].sampleCount++;
-
-    // Chuyển kênh và bắt đầu đo tiếp
-    _currentChannel = (_currentChannel + 1) % 3;
-    _startNextConversion();
-}
 
 void ThreePhaseMonitor::_calculatePhaseResults(uint8_t phase) {
-    if (_phases[phase].sampleCount == 0) return;
+    if (_phases[phase].sampleCount < 10) { 
+        // Đặt các giá trị về 0 nếu không đủ mẫu
+        _phases[phase].Vrms = 0; _phases[phase].Irms = 0; _phases[phase].realPower = 0;
+        _phases[phase].apparentPower = 0; _phases[phase].reactivePower = 0; _phases[phase].powerFactor = 1.0;
+    } else {
+        PhaseData &p = _phases[phase];
 
-    PhaseData &p = _phases[phase];
+        double v_rms_adc = sqrt(p.sumV_sq / p.sampleCount);
+        double i_rms_adc = sqrt(p.sumI_sq / p.sampleCount);
+        
+        float maxVoltage = 4.096;
+        p.Vrms = v_rms_adc * (maxVoltage / 32767.0) * p.vCal;
+        p.Irms = i_rms_adc * (maxVoltage / 32767.0) / p.burdenResistor * p.iCal;
 
-    // Tính Vrms và Irms từ các giá trị ADC
-    double v_rms_adc = sqrt(p.sumV_sq / p.sampleCount);
-    double i_rms_adc = sqrt(p.sumI_sq / p.sampleCount);
-    
-    // Chuyển đổi sang giá trị thực
-    float maxVoltage = 4.096; // Do Gain = 1
-    p.Vrms = v_rms_adc * (maxVoltage / 32767.0) * p.vCal;
-    p.Irms = i_rms_adc * (maxVoltage / 32767.0) / p.burdenResistor * p.iCal;
+        double avg_power_adc = p.sumPower / p.sampleCount;
+        
+        p.apparentPower = p.Vrms * p.Irms;
+        
+        if (p.apparentPower > 1.0) { // Tránh chia cho 0 và các giá trị nhiễu nhỏ
+            // Tính lại P từ các giá trị RMS đã hiệu chuẩn để có độ chính xác cao hơn
+            double calibration_factor = (p.Vrms / v_rms_adc) * (p.Irms / i_rms_adc);
+            p.realPower = avg_power_adc * calibration_factor;
+            p.powerFactor = p.realPower / p.apparentPower;
+        } else {
+            p.realPower = 0;
+            p.powerFactor = 1.0;
+        }
 
-    // Tính công suất
-    double avg_power_adc = p.sumPower / p.sampleCount;
-    p.realPower = avg_power_adc * (p.Vrms / v_rms_adc) * (p.Irms / i_rms_adc);
-    p.apparentPower = p.Vrms * p.Irms;
-    
-    if (p.apparentPower != 0) {
-        p.powerFactor = p.realPower / p.apparentPower;
-        // Giới hạn giá trị PF trong khoảng -1 đến 1
         if (p.powerFactor > 1.0) p.powerFactor = 1.0;
         if (p.powerFactor < -1.0) p.powerFactor = -1.0;
-    } else {
-        p.powerFactor = 1.0;
+        
+        if (p.apparentPower > fabs(p.realPower)) {
+            p.reactivePower = sqrt(p.apparentPower * p.apparentPower - p.realPower * p.realPower);
+        } else {
+            p.reactivePower = 0;
+        }
+
+        double elapsedSeconds = (float)CALCULATION_INTERVAL / 1000.0;
+        double joules = p.realPower * elapsedSeconds;
+        if (joules > 0) {
+            p.kWh += joules / 3600000.0;
+        }
     }
 
-    if (p.apparentPower > p.realPower) {
-        p.reactivePower = sqrt(p.apparentPower * p.apparentPower - p.realPower * p.realPower);
-    } else {
-        p.reactivePower = 0;
-    }
-
-    // Tích lũy năng lượng (kWh)
-    double elapsedSeconds = (float)CALCULATION_INTERVAL / 1000.0;
-    double joules = p.realPower * elapsedSeconds;
-    p.kWh += joules / 3600000.0;
-
-    // Reset các biến tổng
-    p.sumV_sq = 0;
-    p.sumI_sq = 0;
-    p.sumPower = 0;
-    p.sampleCount = 0;
+    // Reset các biến tổng cho chu kỳ tiếp theo
+    _phases[phase].sumV_sq = 0;
+    _phases[phase].sumI_sq = 0;
+    _phases[phase].sumPower = 0;
+    _phases[phase].sampleCount = 0;
 }
 
 void ThreePhaseMonitor::loop() {
-    if (_dataReady) {
-        _dataReady = false;
-        _handleInterrupt();
-    }
+    // Chỉ lấy mẫu khi chưa đến lúc tính toán
+    if (millis() - _lastCalculationTime < CALCULATION_INTERVAL) {
+        // Đọc đồng thời cặp V, I của kênh hiện tại
+        int16_t v_raw = _ads_v.readADC_SingleEnded(_currentChannel);
+        int16_t i_raw = _ads_i.readADC_SingleEnded(_currentChannel);
 
-    if (millis() - _lastCalculationTime >= CALCULATION_INTERVAL) {
+	// --- BỘ LỌC HIỆU CHUẨN OFFSET ĐỘNG ---
+        // Sử dụng bộ lọc thông thấp IIR đơn giản để liên tục cập nhật offset
+        const float alpha = 0.001; // Hệ số lọc. Càng nhỏ, bộ lọc càng "lì" và ổn định.
+        
+        PhaseData &p = _phases[_currentChannel]; // Tham chiếu đến pha hiện tại
+        p.vOffset = (1.0 - alpha) * p.vOffset + alpha * v_raw;
+        p.iOffset = (1.0 - alpha) * p.iOffset + alpha * i_raw;
+        
+        // --- Lọc DC Offset khỏi mẫu ---
+        double v_sample = v_raw - p.vOffset;
+        double i_sample = i_raw - p.iOffset;
+
+        // --- Tích lũy các giá trị ---
+        p.sumV_sq += v_sample * v_sample;
+        p.sumI_sq += i_sample * i_sample;
+        p.sumPower += v_sample * i_sample;
+        p.sampleCount++;
+
+        // Chuyển sang kênh tiếp theo
+        _currentChannel = (_currentChannel + 1) % 3;
+    } else {
+        // Đã đến lúc tính toán và reset
         _lastCalculationTime = millis();
         for (uint8_t i = 0; i < 3; i++) {
             _calculatePhaseResults(i);
