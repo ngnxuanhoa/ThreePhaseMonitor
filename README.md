@@ -26,7 +26,7 @@ This library provides a robust foundation for building sophisticated energy moni
 | Microcontroller | 1 | Any ESP32 Dev Board | Main Processor |
 | ADC Module | **2** | ADS1115 | 1 for Voltage, 1 for Current |
 | Voltage Sensor | 3 | ZMPT101B / T220V1W2G2-01 | Isolated Voltage Sensing |
-| Current Sensor | 3 | SCT-013-000 (Current Output) | Non-invasive Current Sensing |
+| Current Sensor | 3 | SCT-013-000 (Current Output) or PZCT-02 ...| Non-invasive Current Sensing |
 | Resistors, Caps | Various | - | Signal Conditioning Circuits|
 
 ## Library Installation
@@ -90,9 +90,10 @@ Here is the essential wiring guide for connecting the ESP32 to the two ADS1115 m
       delay(1000);
     
       // --- Cấu hình các hằng số cho từng pha ---
-      emon.configurePhase(0, 20.0, 2000.0, 22.0); // Pha R (A0)
-      emon.configurePhase(1, 20.0, 2000.0, 22.0); // Pha S (A1)
-      emon.configurePhase(2, 20.0, 2000.0, 22.0); // Pha T (A2)
+                          //Analog_pin, Vol_Ratio, Cur_Ratio, burdenRes)
+      emon.configurePhase(0, 20.0, 2000.0, 22.0); // Pha R (A0) PZCT-02: Cur_ratio 1000, SCT-013 Cur_ratio 2000
+      emon.configurePhase(1, 20.0, 2000.0, 22.0); // Pha S (A1) PZCT-02: Cur_ratio 1000, SCT-013 Cur_ratio 2000
+      emon.configurePhase(2, 20.0, 2000.0, 22.0); // Pha T (A2) PZCT-02: Cur_ratio 1000, SCT-013 Cur_ratio 2000
     }
 ### 3. Run in loop()
     The emon.loop() function must be called continuously. It handles all background sampling and calculations.
