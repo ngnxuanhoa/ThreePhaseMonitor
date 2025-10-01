@@ -25,9 +25,9 @@ void setup() {
 
   // --- Cấu hình các hằng số cho từng pha ---
                   //(Analog_pin, Vol_ratio, Cur_ratio, burdenRes)
-  emon.configurePhase(0, 20.0, 1000.0, 10.0); // Pha R (A0)
-  emon.configurePhase(1, 20.0, 1000.0, 10.0); // Pha S (A1)
-  emon.configurePhase(2, 20.0, 1000.0, 10.0); // Pha T (A2)
+  emon.configurePhase(0, 20.0, 2000.0, 10.0); // Pha R (A0)    PZCT-02: Cur_ratio 1000, SCT-013 Cur_ratio 2000
+  emon.configurePhase(1, 20.0, 2000.0, 10.0); // Pha S (A1)    PZCT-02: Cur_ratio 1000, SCT-013 Cur_ratio 2000
+  emon.configurePhase(2, 20.0, 2000.0, 10.0); // Pha T (A2)    PZCT-02: Cur_ratio 1000, SCT-013 Cur_ratio 2000
   
   Serial.println("He thong da san sang do luong...");
 }
