@@ -55,12 +55,7 @@ Here is the essential wiring guide for connecting the ESP32 to the two ADS1115 m
 *   **Voltage ADC (ADS_V):** Connect the `ADDR` pin to `GND`. This sets the I2C address to `0x48`.
 *   **Current ADC (ADS_I):** Connect the `ADDR` pin to `VCC (3.3V)`. This sets the I2C address to `0x49`.
 
-#### 3. Interrupt Connection
-*   Connect the `ALERT/RDY` pin of the **Current ADC (ADS_I)** to a GPIO pin on the ESP32 (e.g., `GPIO25`).
-*   **REQUIRED:** Add a **10kΩ pull-up resistor** from this `ALERT/RDY` pin to `3.3V`.
-*   The `ALERT/RDY` pin of the Voltage ADC (ADS_V) can be left disconnected.
-
-#### 4. Analog Signal Connections
+#### 3. Analog Signal Connections
 *   Phase 1 Voltage Signal -> `A0` of Voltage ADC.
 *   Phase 1 Current Signal -> `A0` of Current ADC.
 *   ...and so on for Phase 2 (`A1`) and Phase 3 (`A2`).
@@ -74,7 +69,6 @@ Here is the essential wiring guide for connecting the ESP32 to the two ADS1115 m
     // Define your hardware configuration
     #define VOLTAGE_ADC_ADDR  0x48
     #define CURRENT_ADC_ADDR  0x49
-    #define ADC_RDY_PIN       25
     
     // Create an instance of the library
     ThreePhaseMonitor emon;
@@ -85,22 +79,21 @@ Here is the essential wiring guide for connecting the ESP32 to the two ADS1115 m
       Serial.begin(115200);
       
       // Initialize the library
-      if (!emon.begin(VOLTAGE_ADC_ADDR, CURRENT_ADC_ADDR, ADC_RDY_PIN)) {
-        Serial.println("Failed to initialize monitoring system! Check I2C connections.");
+      if (!emon.begin(ADS_V_ADDR, ADS_I_ADDR)) {
+        Serial.println("Loi khoi tao he thong do luong! Kiem tra ket noi I2C.");
         while(1);
       }
     
-      // IMPORTANT: Calibrate with no load connected!
-      Serial.println("Starting calibration... Make sure there is no load!");
-      delay(2000);
+      // --- Hiệu chuẩn ---
+      Serial.println("Chuan bi hieu chuan. Vui long dam bao KHONG CO TAI tren ca 3 pha!");
+      delay(3000); 
       emon.calibrateOffsets();
       delay(1000);
     
-      // Configure the constants for each phase
-      // configurePhase(phase_index, V_RATIO, I_RATIO, BURDEN_RESISTOR_OHMS);
-      emon.configurePhase(0, 20.0, 2000.0, 22.0); // Phase 1 (R) on A0
-      emon.configurePhase(1, 20.0, 2000.0, 22.0); // Phase 2 (S) on A1
-      emon.configurePhase(2, 20.0, 2000.0, 22.0); // Phase 3 (T) on A2
+      // --- Cấu hình các hằng số cho từng pha ---
+      emon.configurePhase(0, 20.0, 2000.0, 22.0); // Pha R (A0)
+      emon.configurePhase(1, 20.0, 2000.0, 22.0); // Pha S (A1)
+      emon.configurePhase(2, 20.0, 2000.0, 22.0); // Pha T (A2)
     }
 ### 3. Run in loop()
     The emon.loop() function must be called continuously. It handles all background sampling and calculations.
@@ -109,16 +102,6 @@ Here is the essential wiring guide for connecting the ESP32 to the two ADS1115 m
         void loop() {
           // This function drives the entire measurement process.
           emon.loop();
-          
-          // You can add your other non-blocking tasks here.
-          // Example: Print results periodically
-          static unsigned long lastPrintTime = 0;
-          if (millis() - lastPrintTime >= 2000) {
-            lastPrintTime = millis();
-            if (emon.isReady()) {
-              printResults();
-            }
-          }
         }
 ### 4. Retrieve Results
     Use the various getter functions to access the calculated data.
