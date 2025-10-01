@@ -24,9 +24,10 @@ void setup() {
   delay(1000);
 
   // --- Cấu hình các hằng số cho từng pha ---
-  emon.configurePhase(0, 20.0, 2000.0, 22.0); // Pha R (A0)
-  emon.configurePhase(1, 20.0, 2000.0, 22.0); // Pha S (A1)
-  emon.configurePhase(2, 20.0, 2000.0, 22.0); // Pha T (A2)
+                  //(Analog_pin, Voltaget_ratio, Current_ratio, burdenResistor)
+  emon.configurePhase(0, 20.0, 1000.0, 10.0); // Pha R (A0)
+  emon.configurePhase(1, 20.0, 1000.0, 10.0); // Pha S (A1)
+  emon.configurePhase(2, 20.0, 1000.0, 10.0); // Pha T (A2)
   
   Serial.println("He thong da san sang do luong...");
 }
